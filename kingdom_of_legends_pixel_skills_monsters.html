@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>왕국의 전설 - 실시간 전투 RPG</title>
+<style>
+:root{--bg:#111923;--panel:#1d2935;--line:#42515d;--gold:#edc36d;--cream:#f4ead5;--muted:#aab6c1}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#293b42,#101720 65%);color:var(--cream);font-family:system-ui,"Malgun Gothic",sans-serif}
+button{cursor:pointer;border:1px solid #8b7048;border-radius:9px;padding:10px 13px;color:#fff1d3;background:linear-gradient(#a47a3d,#6f4c28);font-weight:800}
+button:disabled{opacity:.4;cursor:not-allowed}.app{max-width:1100px;margin:auto;min-height:100vh;padding:14px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 17px;border:1px solid #79603e;border-radius:15px;background:linear-gradient(110deg,#30443d,#1b2932);box-shadow:0 8px 30px #0005}
+h1{font-size:clamp(20px,4vw,30px);margin:2px 0}.eyebrow{font-size:10px;letter-spacing:2px;color:#d9b77a}.resources{display:flex;gap:14px;font-weight:900;color:var(--gold);flex-wrap:wrap;justify-content:flex-end}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:13px;margin-top:13px}
+main,.side{display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel{background:linear-gradient(145deg,#263541,#1a2530);border:1px solid var(--line);border-radius:13px;padding:13px}
+.panel h2{font-size:16px;margin:0 0 10px}.muted{color:var(--muted);font-size:12px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}.tabs button{background:#293744;border-color:#53616b;flex:1;min-width:85px}.tabs button.active{background:#9a713b;border-color:#e0b86d}
+#arena{width:100%;height:390px;display:block;border-radius:12px;border:1px solid #8b754e;background:#253b37}
+.hud{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:9px}
+.statrow{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.stat{background:#121d27;border:1px solid #384753;border-radius:9px;padding:8px;text-align:center;font-size:11px;color:var(--muted)}.stat b{display:block;color:var(--gold);font-size:17px}
+.bar{height:8px;border-radius:9px;background:#10171e;overflow:hidden}.bar span{display:block;height:100%;background:linear-gradient(90deg,#9c603b,#e6bd64)}
+.log{height:72px;overflow:auto;background:#121b24;border-radius:8px;padding:9px;font-size:12px;color:#c6d0d6}
+.roster{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.hero{border:1px solid #53616b;border-radius:10px;padding:9px;background:#18242e}.hero strong{font-size:13px}.hero .face{font-size:27px;float:right}.rarity{font-size:10px;font-weight:900}.r0{color:#c0c8cd}.r1{color:#69bdf0}.r2{color:#c49aef}.r3{color:#f1c16b}.r4{color:#ff8069}.r5{color:#e2b6ff;text-shadow:0 0 8px #ad62ff}
+.hero button{width:100%;margin-top:7px;padding:7px;font-size:11px}.pixel-face{width:48px;height:64px;float:right;image-rendering:pixelated;cursor:pointer}.hero[data-detail]{cursor:pointer}.hero[data-detail]:hover{border-color:#edc36d;transform:translateY(-2px)}
+.hidden{display:none!important}
+#modal{position:fixed;inset:0;background:#050a10eF;display:none;align-items:center;justify-content:center;padding:15px;z-index:10}
+.modalbox{width:min(600px,100%);max-height:90vh;overflow:auto;background:linear-gradient(145deg,#293c48,#141f2a);border:1px solid #d2a85f;border-radius:17px;padding:18px;text-align:center}
+.drawgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:14px 0}.drawcard{padding:12px;background:#182631;border:1px solid #8c744e;border-radius:10px}
+footer{font-size:11px;color:#82909b;text-align:center;padding:10px}
+@media(max-width:760px){.layout{grid-template-columns:1fr}.side{display:grid;grid-template-columns:1fr 1fr}.side .panel:first-child{grid-column:1/-1}#arena{height:340px}}
+@media(max-width:430px){.app{padding:8px}.side{display:flex}.statrow{grid-template-columns:repeat(3,1fr)}#arena{height:300px}.roster{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+ <div><div class="eyebrow">KINGDOM OF LEGENDS · REAL-TIME RPG</div><h1>🏰 왕국의 전설</h1><div class="muted">영웅을 모으고, 군대를 지휘해 왕국을 지켜라</div></div>
+ <div class="resources"><span>🪙 <b id="gold">500</b></span><span>🏆 <b id="stage">1</b> 스테이지</span></div>
+</header>
+<div class="layout">
+<main>
+ <section class="panel">
+  <div class="hud"><div><h2 style="margin:0">⚔️ 실시간 전장</h2><div class="muted">아군은 자동으로 이동하고 사거리 안의 적을 공격합니다.</div></div><div class="tabs"><button id="pause">Ⅱ 일시정지</button><button id="startWave">전투 시작</button></div></div>
+  <canvas id="arena" width="900" height="390"></canvas>
+  <div class="statrow" style="margin-top:9px">
+   <div class="stat">아군 생존<b id="allyCount">1</b></div><div class="stat">적군 생존<b id="enemyCount">3</b></div><div class="stat">전투 상태<b id="battleState">대기</b></div>
+  </div>
+  <div style="margin-top:10px"><div class="hud"><span class="muted">적군 진영</span><b id="enemyLabel">숲의 늑대 무리</b></div><div class="bar"><span id="waveBar" style="width:0%"></span></div></div>
+ </section>
+ <section class="panel">
+  <div class="hud"><h2>📜 전투 기록</h2><span class="muted">자동 전투 · 실시간 진행</span></div><div class="log" id="log">왕국에 오신 것을 환영합니다. 전투 시작을 눌러 첫 웨이브를 막아내세요.</div>
+ </section>
+ <section class="panel">
+  <div class="hud"><h2>🛡️ 나의 영웅</h2><span class="muted" id="heroCount">1명 보유</span></div><div id="roster" class="roster"></div>
+ </section>
+</main>
+<aside class="side">
+ <section class="panel">
+  <h2>🏰 왕국 현황</h2>
+  <div class="statrow"><div class="stat">총 전투력<b id="power">100</b></div><div class="stat">승리<b id="wins">0</b></div><div class="stat">최고 기록<b id="best">1</b></div></div>
+  <p class="muted" style="margin:12px 0 5px">다음 스테이지 보상</p><b style="color:var(--gold)" id="reward">90 골드</b>
+ </section>
+ <section class="panel">
+  <h2>🔮 운명의 소환</h2><p class="muted">골드를 사용해 새로운 영웅을 영입하세요.</p>
+  <button id="summon1" style="width:100%;margin:4px 0">1회 소환 · 100G</button>
+  <button id="summon10" style="width:100%;margin:4px 0">10회 소환 · 900G</button>
+  <div class="muted" style="margin-top:8px;line-height:1.8">일반 50% · 초희귀 25%<br>영웅 15% · 신화 7%<br>전설 2.5% · 시크릿 0.5%</div>
+ </section>
+ <section class="panel">
+  <h2>🧬 합성 제단</h2><p class="muted">동일한 영웅 3명을 합쳐 다음 등급으로 올립니다.</p><div id="fusionList" class="muted">합성할 영웅이 없습니다.</div>
+ </section>
+ <section class="panel">
+  <h2>🌈 속성 상성표</h2>
+  <div class="muted" style="line-height:1.9">
+   🔥 불 → 🌪️ 바람 → 🪨 대지 → ⚡ 번개 → 💧 물 → 🔥 불<br>
+   ☀️ 빛 ↔ 🌑 어둠
+  </div>
+  <div class="muted" style="margin-top:7px">우위 속성은 1.5배 피해, 열세 속성은 0.75배 피해를 줍니다. 같은 속성은 기본 피해입니다.</div>
+ </section>
+ <section class="panel">
+  <h2>👾 몬스터 도감</h2>
+  <div class="muted" style="line-height:1.9">🐺 숲의 늑대(남) · 🦇 동굴 박쥐(여)<br>💀 해골 검사(남) · 🧟 저주받은 마녀(여)<br>👹 오크 전사(남) · 🕷️ 거미 여왕(여)<br>🐲 새끼 드래곤(남) · 🧝‍♀️ 얼음 여왕(여)<br>🦍 바위 거인(남) · 🧛‍♀️ 흡혈 귀족(여)</div>
+  <div class="muted" style="margin-top:6px">몬스터 성별 비율: 남녀 1:1 · 돌격형, 원거리형, 방어형, 강타형 등 AI 전투 방식이 다릅니다.</div>
+ </section>
+ <section class="panel">
+  <h2>📖 직업 안내</h2><div class="muted" style="line-height:1.9">⚔️ 보병 · 🏹 아처 · 🛡️ 기사<br>🐎 기마병 · ✝️ 성직자 · 🧙 마법사<br>🗡️ 암살자 · 🐉 드래곤 기사<br>✨ 성기사 · 👿 마왕</div>
+ </section>
+</aside>
+</div>
+<footer>저장 없이 실행되는 싱글 플레이 프로토타입 · 브라우저에서 파일을 열어 플레이하세요.</footer>
+</div>
+<div id="modal"><div class="modalbox" id="modalContent"></div></div>
+<script>
+(()=>{
+const $=id=>document.getElementById(id),canvas=$('arena'),ctx=canvas.getContext('2d');
+const ranks=['일반','초희귀','영웅','신화','전설','시크릿'],rclass=['r0','r1','r2','r3','r4','r5'],mult=[1,1.7,2.8,4.8,8,14];
+const jobs=[
+ {name:'보병',icon:'⚔️',sex:'남',element:'대지',skill:'연속 베기',ultimate:'검무 · 광역 참격',base:100,hp:150,range:27,speed:42,damage:17},
+ {name:'아처',icon:'🏹',sex:'여',element:'바람',skill:'정밀 사격',ultimate:'폭풍 화살비',base:145,hp:90,range:190,speed:39,damage:23},
+ {name:'기사',icon:'🛡️',sex:'남',element:'대지',skill:'철벽 강타',ultimate:'왕의 수호진',base:185,hp:230,range:30,speed:31,damage:27},
+ {name:'기마병',icon:'🐎',sex:'여',element:'번개',skill:'질풍 돌격',ultimate:'천둥 질주',base:230,hp:170,range:35,speed:72,damage:34},
+ {name:'성직자',icon:'✝️',sex:'여',element:'빛',skill:'치유의 빛',ultimate:'성역의 기적',base:270,hp:115,range:165,speed:34,damage:11,heal:true},
+ {name:'마법사',icon:'🧙',sex:'남',element:'불',skill:'화염구',ultimate:'종말의 유성',base:330,hp:105,range:175,speed:32,damage:42,magic:true},
+ {name:'암살자',icon:'🗡️',sex:'여',element:'어둠',skill:'그림자 급습',ultimate:'암영 난무',base:390,hp:125,range:32,speed:66,damage:51},
+ {name:'드래곤 기사',icon:'🐉',sex:'남',element:'불',skill:'용염 강타',ultimate:'고룡의 숨결',base:530,hp:260,range:45,speed:45,damage:60},
+ {name:'성기사',icon:'✨',sex:'여',element:'빛',skill:'심판의 일격',ultimate:'천상의 심판',base:700,hp:280,range:40,speed:35,damage:48},
+ {name:'마왕',icon:'👿',sex:'남',element:'어둠',skill:'암흑 파동',ultimate:'종말의 어둠',base:1000,hp:350,range:150,speed:34,damage:85,magic:true}
+];
+let gold=500,stage=1,wins=0,best=1,nextId=2,heroes=[{id:1,job:0,rank:0,lv:1}],allies=[],enemies=[],projectiles=[],particles=[],running=false,paused=false,over=false,last=0,spawned=0,totalEnemies=0,logTimer=0;
+const enemyKinds=[
+ {icon:'🐺',name:'숲의 늑대',sex:'남',element:'대지',hp:0.8,damage:0.85,speed:1.35,range:28,style:'rush'},
+ {icon:'🦇',name:'동굴 박쥐',sex:'여',element:'바람',hp:0.65,damage:0.8,speed:1.6,range:95,style:'ranged'},
+ {icon:'💀',name:'해골 검사',sex:'남',element:'어둠',hp:1.0,damage:1.0,speed:1.0,range:30,style:'guard'},
+ {icon:'🧟',name:'저주받은 마녀',sex:'여',element:'어둠',hp:0.85,damage:1.2,speed:0.8,range:145,style:'ranged'},
+ {icon:'👹',name:'오크 전사',sex:'남',element:'불',hp:1.5,damage:1.25,speed:0.75,range:32,style:'brute'},
+ {icon:'🕷️',name:'거미 여왕',sex:'여',element:'독',hp:1.1,damage:1.1,speed:1.1,range:80,style:'ranged'},
+ {icon:'🐲',name:'새끼 드래곤',sex:'남',element:'불',hp:1.3,damage:1.4,speed:0.9,range:120,style:'ranged'},
+ {icon:'🧝‍♀️',name:'얼음 여왕',sex:'여',element:'물',hp:1.2,damage:1.3,speed:0.85,range:155,style:'ranged'},
+ {icon:'🦍',name:'바위 거인',sex:'남',element:'대지',hp:2.0,damage:1.5,speed:0.55,range:35,style:'brute'},
+ {icon:'🧛‍♀️',name:'흡혈 귀족',sex:'여',element:'어둠',hp:1.4,damage:1.25,speed:1.25,range:35,style:'vampire'}
+];
+const elementInfo={
+ '불':{icon:'🔥',color:'#ff805b',beats:'바람'},
+ '바람':{icon:'🌪️',color:'#9dd7d0',beats:'대지'},
+ '대지':{icon:'🪨',color:'#c9a36a',beats:'번개'},
+ '번개':{icon:'⚡',color:'#f3d66d',beats:'물'},
+ '물':{icon:'💧',color:'#70b9f4',beats:'불'},
+ '빛':{icon:'☀️',color:'#ffeaa0',beats:'어둠'},
+ '어둠':{icon:'🌑',color:'#c39be8',beats:'빛'},
+ '독':{icon:'☠️',color:'#9bd36b',beats:'물'}
+};
+function elementMultiplier(attacker,defender){
+ if(!attacker||!defender)return 1;
+ if(elementInfo[attacker]?.beats===defender)return 1.5;
+ if(elementInfo[defender]?.beats===attacker)return 0.75;
+ return 1;
+}
+function elementLabel(el){return (elementInfo[el]?.icon||'')+' '+(el||'무속성')}
+
+const power=h=>Math.floor(jobs[h.job].base*mult[h.rank]*(1+(h.lv-1)*.3));
+const totalPower=()=>heroes.reduce((s,h)=>s+power(h),0);
+const fmt=n=>Math.floor(n).toLocaleString('ko-KR');
+function say(t){$('log').textContent=t}
+
+// 12x16 도트 캐릭터: 작은 픽셀을 확대해 레트로 RPG 스프라이트로 표현
+function pixelSprite(target,x,y,job,sex,scale=3,enemy=false){
+ const C=target, skin='#f1bd91', hair=sex==='여'?'#d6a34c':'#49352d';
+ const cloth=enemy?'#68715d':['#526c91','#557c9a','#8795a5','#6b8791','#e3d8b8','#66549b','#39414c','#9a6848','#d8bd74','#563e62'][Math.max(0,job)]||'#526c91';
+ const dark='#20252c',metal='#c3cbd0',golden='#e9c36d';
+ const put=(a,b,color)=>{C.fillStyle=color;C.fillRect(Math.round(x+a*scale),Math.round(y+b*scale),scale,scale)};
+ // silhouette, boots and legs
+ for(let xx=3;xx<=8;xx++){put(xx,13,dark);put(xx,14,xx<6?'#55453b':'#393c42')}
+ put(4,11,'#343b48');put(7,11,'#343b48');put(4,12,'#343b48');put(7,12,'#343b48');
+ // arms and torso
+ for(let yy=7;yy<=11;yy++){put(3,yy,skin);put(8,yy,skin)}
+ for(let yy=7;yy<=12;yy++)for(let xx=4;xx<=7;xx++)put(xx,yy,cloth);
+ put(5,8,golden);put(6,8,golden);put(5,9,golden);
+ // head, ears, face
+ put(3,3,skin);put(8,3,skin);
+ for(let yy=3;yy<=6;yy++)for(let xx=4;xx<=7;xx++)put(xx,yy,skin);
+ for(let xx=4;xx<=7;xx++)put(xx,2,hair);
+ put(3,4,hair);put(8,4,hair);
+ put(4,2,hair);put(5,1,hair);put(6,1,hair);put(7,2,hair);
+ put(5,5,dark);put(7,5,dark);put(6,6,'#a85f51');
+ if(sex==='여'){put(3,5,hair);put(3,6,hair);put(8,5,hair);put(8,6,hair);put(9,7,hair)}
+ else{put(4,6,hair);put(5,6,hair);put(6,6,hair);put(7,6,hair)}
+ // armor / job-specific silhouette and weapon
+ if(job===2||job===8||job===7){put(3,7,metal);put(8,7,metal);put(4,7,metal);put(7,7,metal)}
+ if(job===1){for(let yy=4;yy<12;yy++)put(10,yy,'#8d6842');put(10,3,'#d9dfe5');put(11,4,'#d9dfe5');put(9,4,'#d9dfe5')}
+ else if(job===0||job===2||job===3||job===6||job===7||job===8){for(let yy=5;yy<13;yy++)put(10,yy,metal);put(10,4,golden);put(11,3,metal)}
+ else if(job===4){put(2,7,'#f4e8c5');put(2,8,'#f4e8c5');put(9,3,golden);put(9,4,golden)}
+ else if(job===5||job===9){put(10,6,'#7653a6');put(10,5,'#d9b4ff');put(10,4,'#d9b4ff');put(11,3,'#e7c7ff')}
+ if(enemy){put(4,3,'#b8d17b');put(7,3,'#b8d17b');put(5,5,'#a32929');put(7,5,'#a32929');put(3,2,'#657c4d');put(8,2,'#657c4d')}
+}
+function paintRosterSprites(){
+ document.querySelectorAll('#roster canvas[data-sprite]').forEach(c=>{
+  const j=+c.dataset.sprite,sex=jobs[j].sex;
+  const cctx=c.getContext('2d');cctx.clearRect(0,0,c.width,c.height);
+  pixelSprite(cctx,0,0,j,sex,4,false);
+ });
+}
+function showHeroDetail(heroId){
+ const h=heroes.find(v=>v.id===heroId);if(!h)return;
+ const j=jobs[h.job],cost=Math.floor(60*Math.pow(1.6,h.lv-1));
+ $('modal').style.display='flex';
+ $('modalContent').innerHTML=`<div class="eyebrow">HERO PROFILE · CHARACTER VIEW</div>
+ <h2 style="font-size:23px;margin:8px">${j.name}</h2>
+ <div style="display:flex;justify-content:center;margin:12px"><canvas id="detailSprite" width="192" height="256" style="width:192px;height:256px;image-rendering:pixelated;background:linear-gradient(#344c52,#1b2832);border:2px solid #8d744e;border-radius:12px"></canvas></div>
+ <div class="rarity ${rclass[h.rank]}" style="font-size:14px">${ranks[h.rank]} 등급</div>
+ <p class="muted">${j.sex==='여'?'여성 영웅':'남성 영웅'} · ${j.desc||'왕국의 전사'}</p>
+ <div class="statrow"><div class="stat">레벨<b>${h.lv}</b></div><div class="stat">전투력<b>${fmt(power(h))}</b></div><div class="stat">속성<b>${elementLabel(j.element)}</b></div></div>
+ <p class="muted" style="margin:8px 0">🌀 일반 기술: <b>${j.skill}</b><br>🌟 궁극기: <b>${j.ultimate}</b></p>
+ <p class="muted" style="margin:10px 0">상성 우위: ${elementInfo[j.element].beats} 속성에게 1.5배 피해 · 불리한 속성에게는 0.75배 피해</p>
+ <p class="muted" style="margin:12px 0">전투 중 이 영웅은 고유한 이동 속도와 공격 사거리로 자동 전투합니다.</p>
+ <button id="detailUpgrade" style="width:100%">⬆️ 강화하기 · ${fmt(cost)}G</button>
+ <button id="detailClose" style="width:100%;margin-top:8px;background:#303d48;border-color:#536271">닫기</button>`;
+ const dc=$('detailSprite').getContext('2d');pixelSprite(dc,0,0,h.job,j.sex,16,false);
+ $('detailClose').onclick=()=>$('modal').style.display='none';
+ $('detailUpgrade').onclick=()=>{if(gold<cost){say('골드가 부족합니다.');return}gold-=cost;h.lv++;updateUI();showHeroDetail(heroId);say(j.name+' 강화 완료!')};
+}
+
+function updateUI(){
+ $('gold').textContent=fmt(gold);$('stage').textContent=stage;$('power').textContent=fmt(totalPower());$('wins').textContent=wins;$('best').textContent=best;$('heroCount').textContent=heroes.length+'명 보유';$('reward').textContent=(65+stage*25)+' 골드';
+ $('roster').innerHTML=heroes.map(h=>{let j=jobs[h.job],c=Math.floor(60*Math.pow(1.6,h.lv-1));return `<div class="hero" data-detail="${h.id}"><canvas class="pixel-face" data-sprite="${h.job}" width="48" height="64" title="${j.name} 픽셀 캐릭터"></canvas><strong>${j.name} <small style="color:#aeb8c0">${j.sex==='여'?'♀':'♂'}</small></strong><div class="rarity ${rclass[h.rank]}">${ranks[h.rank]} · Lv.${h.lv}</div><div class="muted">${elementLabel(j.element)}</div><div class="muted">전투력 ${fmt(power(h))}</div><button data-up="${h.id}" ${gold<c?'disabled':''}>강화 ${fmt(c)}G</button></div>`}).join('');
+ let groups={};heroes.forEach(h=>{let k=h.job+'-'+h.rank;groups[k]=(groups[k]||0)+1});
+ let f=Object.entries(groups).filter(([k,n])=>n>=3&&+k.split('-')[1]<5);
+ paintRosterSprites();
+ $('fusionList').innerHTML=f.length?f.map(([k,n])=>{let [j,r]=k.split('-').map(Number);return `<div style="display:flex;justify-content:space-between;align-items:center;margin:7px 0"><span>${jobs[j].icon} ${jobs[j].name} · ${ranks[r]} ×${n}</span><button data-fuse="${k}" style="padding:6px 9px">합성</button></div>`}).join(''):'중복 영웅 3명을 모으면 합성할 수 있습니다.';
+ $('allyCount').textContent=allies.filter(a=>a.hp>0).length;$('enemyCount').textContent=enemies.filter(a=>a.hp>0).length;$('battleState').textContent=paused?'일시정지':running?'전투 중':over?'승리':'대기';
+ $('waveBar').style.width=(totalEnemies?Math.min(100,((totalEnemies-enemies.filter(e=>e.hp>0).length)/totalEnemies)*100):0)+'%';
+}
+function makeUnit(h,x,y,team){
+ let j=jobs[h.job],scale=mult[h.rank],lv=1+(h.lv-1)*.16;
+ return {id:h.id,job:h.job,team,x,y,hp:j.hp*scale*lv,maxHp:j.hp*scale*lv,damage:j.damage*scale*lv,range:j.range,speed:j.speed,icon:j.icon,sex:j.sex,element:j.element,skill:j.skill,ultimateName:j.ultimate,skillCd:3+Math.random()*2,ultimate:0,heal:j.heal||false,magic:j.magic||false,cd:Math.random()*.4,dead:false,level:h.lv,rank:h.rank};
+}
+function beginWave(){
+ if(running)return;over=false;running=true;paused=false;spawned=0;projectiles=[];particles=[];
+ allies=heroes.map((h,i)=>makeUnit(h,95+(i%3)*16,75+Math.floor(i/3)*52,'ally'));
+ let n=Math.min(3+Math.floor(stage*.65),12);totalEnemies=n;enemies=[];
+ for(let i=0;i<n;i++){let kind=enemyKinds[(stage*3+i)%enemyKinds.length],elite=stage%5===0;
+ let ehp=(75+stage*23)*(kind.hp||1)*(elite?1.7:1),espeed=(25+Math.min(stage,25))*(kind.speed||1);
+ enemies.push({id:1000+i,team:'enemy',x:canvas.width-100-(i%3)*25,y:75+Math.floor(i/3)*60,hp:ehp,maxHp:ehp,damage:(9+stage*2)*(kind.damage||1),speed:espeed,range:kind.range||29,icon:kind.icon,name:kind.name,job:-1,sex:kind.sex,monsterType:kind.name,element:kind.element,style:kind.style,cd:Math.random(),skillCd:4+Math.random()*3,ultimate:0,dead:false})}
+ $('enemyLabel').textContent=enemyKinds[(stage*3)%enemyKinds.length].name+(stage%5===0?' · 보스 웨이브':' 무리');say('전투 개시! 아군이 적을 향해 진격합니다.');$('startWave').disabled=true;updateUI();
+}
+function nearest(unit,targets){let alive=targets.filter(t=>t.hp>0);if(!alive.length)return null;return alive.reduce((a,b)=>Math.abs(b.x-unit.x)<Math.abs(a.x-unit.x)?b:a)}
+function burst(x,y,color){for(let i=0;i<7;i++)particles.push({x,y,vx:(Math.random()-.5)*100,vy:(Math.random()-.5)*100,life:.35,color})}
+function pixelBurst(x,y,color,big=false){
+ const count=big?34:13;
+ for(let i=0;i<count;i++)particles.push({x:x+(Math.random()-.5)*(big?18:8),y:y+(Math.random()-.5)*(big?18:8),vx:(Math.random()-.5)*(big?230:150),vy:(Math.random()-.5)*(big?230:150),life:big?.72:.42,color,size:big?6:4});
+}
+function castSkill(u,targets,allied){
+ const alive=targets.filter(t=>t.hp>0);if(!alive.length)return;
+ const target=nearest(u,alive);if(!target)return;
+ const isHero=u.team==='ally';
+ if(u.heal&&allied){
+  const weak=allies.filter(v=>v.hp>0&&v.hp<v.maxHp).sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0];
+  if(weak){weak.hp=Math.min(weak.maxHp,weak.hp+u.damage*2.2);pixelBurst(weak.x,weak.y,'#a5ffb4',true);}
+ }else{
+  const radius=u.style==='brute'?100:82;
+  alive.filter(v=>Math.hypot(v.x-target.x,v.y-target.y)<radius).forEach(v=>{
+   const mul=elementMultiplier(u.element,v.element);
+   v.hp-=u.damage*(isHero?1.7:1.25)*mul;
+   pixelBurst(v.x,v.y,elementInfo[u.element]?.color||'#fff',false);
+  });
+  pixelBurst(target.x,target.y,elementInfo[u.element]?.color||'#fff',true);
+ }
+ say((isHero?u.skill||'특수 기술':u.name+' 특수 공격')+' 발동!');
+}
+function castUltimate(u,targets,allied){
+ const alive=targets.filter(t=>t.hp>0);if(!alive.length)return;
+ const isHero=u.team==='ally';
+ if(u.heal&&isHero){
+  allies.forEach(v=>{v.hp=Math.min(v.maxHp,v.hp+v.maxHp*.32);pixelBurst(v.x,v.y,'#b7ffd0',true)});
+ }else{
+  alive.forEach(v=>{
+   const mul=elementMultiplier(u.element,v.element);
+   v.hp-=u.damage*(isHero?3.4:2.1)*mul;
+   pixelBurst(v.x,v.y,elementInfo[u.element]?.color||'#ffe27a',true);
+  });
+ }
+ u.ultimate=0;
+ say('✨ '+(isHero?(u.ultimateName||'궁극기'):(u.name+' 필살기'))+' 발동!');
+}
+function attack(a,t,dt){
+ a.cd-=dt;if(a.cd>0)return;a.cd=.65+(Math.random()*.18);
+ if(a.heal){let weak=allies.filter(x=>x.hp>0&&x.hp<x.maxHp).sort((x,y)=>x.hp/x.maxHp-y.hp/y.maxHp)[0];if(weak){weak.hp=Math.min(weak.maxHp,weak.hp+17+stage);burst(weak.x,weak.y,'#8df2a3')}return}
+ if(a.range>60){projectiles.push({x:a.x,y:a.y-8,target:t,damage:a.damage*elementMultiplier(a.element,t.element),magic:a.magic,team:a.team,life:2})}
+ else{let em=elementMultiplier(a.element,t.element);t.hp-=a.damage*em;burst(t.x,t.y,em>1?'#ffe06b':a.team==='ally'?'#f4d18a':'#ff7665');if(em>1.01)say('상성 우위! '+elementLabel(a.element)+' 공격이 효과적입니다.');else if(em<.99)say('상성 열세... '+elementLabel(t.element)+' 속성에게 불리합니다.')}
+}
+function update(dt){
+ if(!running||paused)return;
+ for(let a of allies){if(a.hp<=0)continue;
+ a.skillCd-=dt;a.ultimate=Math.min(100,(a.ultimate||0)+dt*3.8);
+ if(a.skillCd<=0){castSkill(a,enemies,allies);a.skillCd=8.5}
+ if(a.ultimate>=100)castUltimate(a,enemies,allies);
+ let t=nearest(a,enemies);if(!t)continue;let dx=t.x-a.x,dy=t.y-a.y,d=Math.hypot(dx,dy),reach=a.range;
+ if(d>reach+8){a.x+=dx/d*a.speed*dt;a.y+=dy/d*a.speed*dt}else attack(a,t,dt)}
+ for(let e of enemies){if(e.hp<=0)continue;
+ e.skillCd=(e.skillCd||0)-dt;
+ if(e.skillCd<=0){castSkill(e,allies,enemies);e.skillCd=10+(Math.random()*3)}
+ let t=nearest(e,allies);if(!t)continue;let dx=t.x-e.x,dy=t.y-e.y,d=Math.hypot(dx,dy);if(d>e.range+8){e.x+=dx/d*e.speed*dt;e.y+=dy/d*e.speed*dt}else attack(e,t,dt)}
+ for(let p of projectiles){p.life-=dt;if(p.target&&p.target.hp>0){let dx=p.target.x-p.x,dy=p.target.y-p.y,d=Math.hypot(dx,dy),v=330*dt;if(d<v){p.target.hp-=p.damage;burst(p.target.x,p.target.y,p.magic?'#b98cff':'#f5d28c');p.life=0}else{p.x+=dx/d*v;p.y+=dy/d*v}}else p.life=0}
+ projectiles=projectiles.filter(p=>p.life>0);
+ for(let p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt}particles=particles.filter(p=>p.life>0);
+ allies=allies.filter(a=>a.hp>0);enemies=enemies.filter(e=>e.hp>0);
+ if(enemies.length===0){running=false;over=true;wins++;let reward=65+stage*25;gold+=reward;best=Math.max(best,stage);say('🏆 승리! '+reward+' 골드를 획득했습니다. 다음 스테이지에 도전하세요.');$('startWave').disabled=false;updateUI()}
+ else if(allies.length===0){running=false;over=false;say('💀 패배했습니다. 영웅을 강화하거나 새로운 동료를 소환하세요.');$('startWave').disabled=false;updateUI()}
+}
+function draw(){
+ let w=canvas.width,h=canvas.height;
+ let g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,'#334c4a');g.addColorStop(.6,'#536347');g.addColorStop(1,'#343c32');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+ ctx.fillStyle='#d5c38b';ctx.globalAlpha=.13;for(let i=0;i<13;i++){ctx.beginPath();ctx.arc((i*83+25)%w,35+(i*47)%h,12+i%3*5,0,7);ctx.fill()}ctx.globalAlpha=1;
+ ctx.strokeStyle='#b5a477';ctx.globalAlpha=.28;ctx.lineWidth=2;ctx.setLineDash([8,9]);ctx.beginPath();ctx.moveTo(w/2,12);ctx.lineTo(w/2,h-12);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+ function pixelMonster(C,x,y,u,scale=3){
+ const put=(a,b,c)=>{C.fillStyle=c;C.fillRect(Math.round(x+a*scale),Math.round(y+b*scale),scale,scale)};
+ const n=u.name||'', female=u.sex==='여';
+ let body=n.includes('늑대')?'#87939a':n.includes('박쥐')?'#69558e':n.includes('해골')?'#c9c7b8':n.includes('마녀')?'#8d5c9e':n.includes('오크')?'#63834b':n.includes('거미')?'#6b9c58':n.includes('드래곤')?'#b85b43':n.includes('얼음')?'#75c9df':n.includes('거인')?'#8b806b':'#9b4f78';
+ const dark='#242630', light=female?'#f2c5db':'#d8d0b5';
+ // head and torso silhouettes
+ for(let yy=5;yy<=11;yy++)for(let xx=3;xx<=8;xx++)put(xx,yy,body);
+ for(let yy=2;yy<=5;yy++)for(let xx=4;xx<=7;xx++)put(xx,yy,body);
+ put(4,12,dark);put(7,12,dark);put(3,13,dark);put(8,13,dark);
+ put(4,3,light);put(7,3,light);put(5,4,dark);put(6,4,dark);
+ // recognizable pixel appendages
+ if(n.includes('박쥐')||n.includes('드래곤')){for(let i=0;i<4;i++){put(i,5-i,body);put(11-i,5-i,body)}put(1,4,dark);put(10,4,dark)}
+ if(n.includes('늑대')){put(3,1,body);put(4,0,body);put(7,0,body);put(8,1,body);put(2,6,body);put(9,6,body)}
+ if(n.includes('거미')){for(let i=0;i<4;i++){put(i,7+i, dark);put(11-i,7+i,dark)}}
+ if(n.includes('거인')||n.includes('오크')){put(2,4,body);put(9,4,body);put(2,5,body);put(9,5,body)}
+ if(n.includes('얼음')){put(3,0,'#d8f8ff');put(5,0,'#d8f8ff');put(7,0,'#d8f8ff');put(9,0,'#d8f8ff')}
+ if(n.includes('흡혈')){put(3,2,'#e9e2f0');put(8,2,'#e9e2f0');put(2,3,'#e9e2f0');put(9,3,'#e9e2f0')}
+ if(female){put(2,5,'#d78ab1');put(9,5,'#d78ab1')}else{put(5,2,'#e6d7aa')}
+}
+function person(u){ctx.save();ctx.fillStyle='#0006';ctx.beginPath();ctx.ellipse(u.x,u.y+8,18,6,0,0,7);ctx.fill();if(u.team==='enemy')pixelMonster(ctx,u.x-18,u.y-48,u,3);else pixelSprite(ctx,u.x-18,u.y-48,u.job??-1,u.sex||'남',3,false);ctx.fillStyle='#263039';ctx.fillRect(u.x-15,u.y-29,30,5);ctx.fillStyle=u.team==='ally'?'#65c8e9':'#f06b5d';ctx.fillRect(u.x-15,u.y-29,30*Math.max(0,u.hp/u.maxHp),5);
+ ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillStyle=elementInfo[u.element]?.color||'#fff';ctx.fillText(elementInfo[u.element]?.icon||'',u.x,u.y-52);ctx.restore()}
+ allies.forEach(person);enemies.forEach(person);
+ for(let p of projectiles){ctx.fillStyle=p.magic?'#c78cff':p.team==='ally'?'#ffe19b':'#ff7468';ctx.beginPath();ctx.arc(p.x,p.y, p.magic?5:3,0,7);ctx.fill()}
+ for(let p of particles){ctx.globalAlpha=Math.max(0,p.life/.35);ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,p.size||4,p.size||4)}ctx.globalAlpha=1;
+ if(!running){ctx.fillStyle='#091019aa';ctx.fillRect(0,0,w,h);ctx.fillStyle='#fff0cf';ctx.textAlign='center';ctx.font='bold 25px sans-serif';ctx.fillText(over?'STAGE CLEAR':'왕국의 전장',w/2,h/2-8);ctx.font='14px sans-serif';ctx.fillText(over?'다음 스테이지를 준비하세요':'전투 시작을 눌러 출정하세요',w/2,h/2+20)}
+}
+function loop(t){let dt=Math.min(.04,(t-last)/1000||0);last=t;if(!paused)update(dt);draw();requestAnimationFrame(loop)}
+function rollRank(){let x=Math.random()*100;return x<50?0:x<75?1:x<90?2:x<97?3:x<99.5?4:5}
+function summon(n){let cost=n===10?900:100;if(gold<cost){say('골드가 부족합니다. 스테이지를 클리어하세요.');return}if(running){say('전투 중에는 소환할 수 없습니다.');return}gold-=cost;updateUI();$('modal').style.display='flex';$('modalContent').innerHTML='<div style="font-size:75px;animation:pulse 1s infinite alternate">🔮</div><h2>고대의 소환진이 빛납니다...</h2><p class="muted">운명의 영웅을 불러내는 중</p>';setTimeout(()=>{let arr=[];for(let i=0;i<n;i++){let job=1+Math.floor(Math.random()*9),rank=rollRank(),h={id:nextId++,job,rank,lv:1};heroes.push(h);arr.push(h)}updateUI();$('modalContent').innerHTML='<div class="eyebrow">SUMMON COMPLETE</div><h2>✨ 영웅 소환 성공!</h2><div class="drawgrid">'+arr.map(h=>`<div class="drawcard"><div style="font-size:43px">${jobs[h.job].icon}</div><b>${jobs[h.job].name}</b><div class="rarity ${rclass[h.rank]}">${ranks[h.rank]} ${h.rank===5?'🌌':''}</div><div class="muted">${jobs[h.job].sex==='여'?'여성 영웅':'남성 영웅'}</div></div>`).join('')+'</div><button id="close" style="width:100%">확인</button>';$('close').onclick=()=>$('modal').style.display='none';},1200)}
+$('startWave').onclick=beginWave;$('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'▶ 재개':'Ⅱ 일시정지';updateUI()};
+$('summon1').onclick=()=>summon(1);$('summon10').onclick=()=>summon(10);
+$('roster').addEventListener('click',e=>{let detail=e.target.closest('[data-detail]');if(detail&&!e.target.closest('[data-up]')){showHeroDetail(+detail.dataset.detail);return}let b=e.target.closest('[data-up]');if(!b)return;let h=heroes.find(x=>x.id===+b.dataset.up),c=Math.floor(60*Math.pow(1.6,h.lv-1));if(gold<c){say('골드가 부족합니다.');return}gold-=c;h.lv++;say(jobs[h.job].name+' 강화 완료!');updateUI()});
+$('fusionList').addEventListener('click',e=>{let b=e.target.closest('[data-fuse]');if(!b)return;let [j,r]=b.dataset.fuse.split('-').map(Number),arr=heroes.filter(h=>h.job===j&&h.rank===r).slice(0,3);if(arr.length<3||r>=5)return;heroes=heroes.filter(h=>!arr.includes(h));heroes.push({id:nextId++,job:j,rank:r+1,lv:1});say('합성 성공! '+ranks[r+1]+' '+jobs[j].name+' 획득!');updateUI()});
+updateUI();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
